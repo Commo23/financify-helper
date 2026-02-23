@@ -1,17 +1,12 @@
-// Supabase client for Rate Explorer (Edge Functions: scrape-rates, scrape-irs, scrape-bonds)
+// Re-export everything from the auto-generated client
+// This wrapper ensures the Supabase client works even if .env is not loaded
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '';
+const SUPABASE_URL = "https://pmtkufkwfsxxuleuyweb.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtdGt1Zmt3ZnN4eHVsZXV5d2ViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4ODY4NzQsImV4cCI6MjA4NzQ2Mjg3NH0.AEIKeY0NzEtToW5TI6GSn26u_3vnhHsxLRKSQQWcyFY";
 
-/** True if Supabase is configured (Rate Explorer can call Edge Functions). */
-export const isSupabaseConfigured =
-  typeof SUPABASE_URL === 'string' &&
-  SUPABASE_URL.length > 0 &&
-  SUPABASE_URL.startsWith('https://') &&
-  typeof SUPABASE_PUBLISHABLE_KEY === 'string' &&
-  SUPABASE_PUBLISHABLE_KEY.length > 0;
+export const isSupabaseConfigured = true;
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
