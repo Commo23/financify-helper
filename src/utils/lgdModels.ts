@@ -30,24 +30,19 @@ export interface LGDGuaranteedConfig {
 // Default parameters for different collateral types
 export const DEFAULT_COLLATERAL_PARAMETERS: Record<CollateralType, LGDModelParameters> = {
   realEstate: {
-    appreciationRate: 0.03, // 3% annual appreciation
-    model: 'exponential'
+    appreciationRate: 0.03 // 3% annual appreciation
   },
   equipment: {
-    depreciationRate: 0.15, // 15% annual depreciation
-    model: 'exponential'
+    depreciationRate: 0.15 // 15% annual depreciation
   },
   vehicle: {
-    depreciationRate: 0.20, // 20% annual depreciation (higher than equipment)
-    model: 'exponential'
+    depreciationRate: 0.20 // 20% annual depreciation (higher than equipment)
   },
   cash: {
-    depreciationRate: 0.02, // 2% annual depreciation (inflation)
-    model: 'linear'
+    depreciationRate: 0.02 // 2% annual depreciation (inflation)
   },
   other: {
-    depreciationRate: 0.10, // 10% annual depreciation
-    model: 'linear'
+    depreciationRate: 0.10 // 10% annual depreciation
   }
 };
 
