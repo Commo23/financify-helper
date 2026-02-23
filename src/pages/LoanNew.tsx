@@ -72,9 +72,22 @@ interface LoanFormData {
   moodysRating: string;
   fitchRating: string;
   
-  margin: string;
+  // Client rate parameters
+  clientRateType: 'fixed' | 'variable'; // Rate type for client loan
+  margin: string; // Client margin - Spread over reference rate (%)
+  clientFundingIndex?: string; // Index for variable client rate
+  
+  // Bank funding parameters
+  fundingRateType: 'fixed' | 'variable'; // Rate type for bank funding
+  fundingRate?: string; // Funding rate (%) for fixed funding
+  fundingIndex?: string; // Funding index code for variable funding
+  fundingMargin?: string; // Funding margin in basis points (bp) - added to funding index when variable
+  useCustomFundingRate?: boolean; // Whether to use a custom hardcoded rate for funding
+  customFundingRate?: string; // Custom hardcoded funding rate (%)
+  
+  // Legacy fields for backward compatibility
   referenceRate: string;
-  rateType: 'fixed' | 'variable';
+  rateType: 'fixed' | 'variable'; // DEPRECATED: Use clientRateType
   upfrontFee?: string;
   commitmentFee?: string;
   agencyFee?: string;
@@ -185,9 +198,22 @@ const LoanNew = () => {
     spRating: 'N/A',
     moodysRating: 'N/A',
     fitchRating: 'N/A',
-    margin: '2',
+    // Client rate parameters
+    clientRateType: 'variable',
+    margin: '2', // Default client margin in % (2%)
+    clientFundingIndex: '', // Will be initialized from params
+    
+    // Bank funding parameters
+    fundingRateType: 'variable',
+    fundingRate: '', // Will be initialized from params
+    fundingIndex: '', // Will be initialized from params
+    fundingMargin: '50', // Default funding margin in bp (50 bp = 0.5%)
+    useCustomFundingRate: false,
+    customFundingRate: '',
+    
+    // Legacy fields
     referenceRate: '3',
-    rateType: 'variable',
+    rateType: 'variable', // For backward compatibility
     upfrontFee: '0',
     commitmentFee: '0',
     agencyFee: '0',
@@ -205,6 +231,60 @@ const LoanNew = () => {
   };
   
   const [formData, setFormData] = useState<LoanFormData>(defaultFormData);
+  
+  // Initialize funding parameters from settings
+  useEffect(() => {
+    const params = ParameterService.loadParameters();
+    const fundingIndexService = FundingIndexService.getInstance();
+    
+    setFormData(prev => {
+      const updated = { ...prev };
+      
+      // Initialize bank funding parameters
+      if (prev.fundingRateType === 'fixed' && !prev.fundingRate) {
+        updated.fundingRate = (params.fundingCost * 100).toFixed(2);
+      }
+      
+      if (prev.fundingRateType === 'variable' && !prev.fundingIndex) {
+        const defaultIndex = params.defaultFundingIndex || fundingIndexService.getDefaultFundingIndexForCurrency(currentCurrency) || 'SOFR';
+        updated.fundingIndex = defaultIndex;
+      }
+      
+      // Initialize client rate parameters
+      if (prev.clientRateType === 'variable' && !prev.clientFundingIndex) {
+        const defaultIndex = params.defaultFundingIndex || fundingIndexService.getDefaultFundingIndexForCurrency(currentCurrency) || 'SOFR';
+        updated.clientFundingIndex = defaultIndex;
+      }
+      
+      return updated;
+    });
+  }, [currentCurrency]);
+  
+  // Update parameters when rate types change
+  useEffect(() => {
+    const params = ParameterService.loadParameters();
+    const fundingIndexService = FundingIndexService.getInstance();
+    
+    setFormData(prev => {
+      const updated = { ...prev };
+      
+      // Update bank funding parameters
+      if (prev.fundingRateType === 'fixed' && !updated.fundingRate) {
+        updated.fundingRate = (params.fundingCost * 100).toFixed(2);
+      } else if (prev.fundingRateType === 'variable' && !updated.fundingIndex) {
+        const defaultIndex = params.defaultFundingIndex || fundingIndexService.getDefaultFundingIndexForCurrency(currentCurrency) || 'SOFR';
+        updated.fundingIndex = defaultIndex;
+      }
+      
+      // Update client rate parameters
+      if (prev.clientRateType === 'variable' && !updated.clientFundingIndex) {
+        const defaultIndex = params.defaultFundingIndex || fundingIndexService.getDefaultFundingIndexForCurrency(currentCurrency) || 'SOFR';
+        updated.clientFundingIndex = defaultIndex;
+      }
+      
+      return updated;
+    });
+  }, [formData.fundingRateType, formData.clientRateType, currentCurrency]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [parametersVersion, setParametersVersion] = useState(0); // Force re-render when parameters change
   const [collateralPortfolio, setCollateralPortfolio] = useState<CollateralPortfolio>({
@@ -349,9 +429,24 @@ const LoanNew = () => {
             spRating: loanToEdit.ratings?.sp || 'N/A',
             moodysRating: loanToEdit.ratings?.moodys || 'N/A',
             fitchRating: loanToEdit.ratings?.fitch || 'N/A',
-            margin: (loanToEdit.margin * 100).toString(),
+            // Client rate parameters
+            clientRateType: loanToEdit.clientRateType || loanToEdit.rateType || 'variable',
+            margin: (loanToEdit.margin * 100).toString(), // Client margin in percentage
+            clientFundingIndex: loanToEdit.clientFundingIndex || loanToEdit.fundingIndex,
+            
+            // Bank funding parameters
+            fundingRateType: loanToEdit.fundingRateType || (loanToEdit.fundingIndex ? 'variable' : 'fixed'),
+            fundingRate: loanToEdit.fundingRateType === 'fixed' || !loanToEdit.fundingIndex
+              ? (loanToEdit.referenceRate * 100).toString()
+              : undefined,
+            fundingIndex: loanToEdit.fundingIndex,
+            fundingMargin: loanToEdit.fundingMargin ? (loanToEdit.fundingMargin * 10000).toString() : '50', // Convert to bp
+            useCustomFundingRate: loanToEdit.fundingRateType === 'variable' && !loanToEdit.fundingIndex ? true : false,
+            customFundingRate: loanToEdit.fundingRateType === 'variable' && !loanToEdit.fundingIndex ? (loanToEdit.referenceRate * 100).toString() : undefined,
+            
+            // Legacy fields
             referenceRate: (loanToEdit.referenceRate * 100).toString(),
-            rateType: loanToEdit.rateType || 'variable',
+            rateType: loanToEdit.clientRateType || loanToEdit.rateType || 'variable',
             upfrontFee: loanToEdit.fees.upfront?.toString() || '0',
             commitmentFee: loanToEdit.fees.commitment?.toString() || '0',
             agencyFee: loanToEdit.fees.agency?.toString() || '0',
@@ -629,10 +724,29 @@ const LoanNew = () => {
           agency: parseFloat(formData.agencyFee?.toString() || '0'),
           other: parseFloat(formData.otherFee?.toString() || '0')
         },
-        margin: parseFloat(formData.margin.toString()) / 100,
-        rateType: formData.rateType,
-        referenceRate: parseFloat(formData.referenceRate.toString()) / 100,
-        fundingIndex: ParameterService.loadParameters().defaultFundingIndex || 'SOFR',
+        // Client rate parameters
+        clientRateType: formData.clientRateType,
+        margin: parseFloat(formData.margin.toString()) / 100, // Client margin in percentage
+        clientFundingIndex: formData.clientRateType === 'variable' && formData.clientFundingIndex
+          ? (formData.clientFundingIndex as FundingIndex)
+          : undefined,
+        
+        // Bank funding parameters
+        fundingRateType: formData.fundingRateType,
+        fundingIndex: formData.fundingRateType === 'variable' && formData.fundingIndex && !formData.useCustomFundingRate
+          ? (formData.fundingIndex as FundingIndex)
+          : undefined,
+        fundingMargin: formData.fundingRateType === 'variable' && formData.fundingMargin
+          ? parseFloat(formData.fundingMargin.toString()) / 10000 // Convert bp to decimal
+          : 0,
+        
+        // Legacy fields for backward compatibility
+        rateType: formData.clientRateType, // Use clientRateType for backward compatibility
+        referenceRate: formData.fundingRateType === 'fixed' && formData.fundingRate
+          ? parseFloat(formData.fundingRate.toString()) / 100
+          : (formData.useCustomFundingRate && formData.customFundingRate
+            ? parseFloat(formData.customFundingRate.toString()) / 100
+            : parseFloat(formData.referenceRate.toString()) / 100), // For backward compatibility
         internalRating: formData.internalRating as SPRating, // Backward compatibility
         ratings: ratings, // New multi-rating system
         sector: formData.sector,
@@ -962,26 +1076,191 @@ const LoanNew = () => {
                 </Select>
               </div>
               
+              {/* Funding Parameters Section */}
+              <div className="p-4 border rounded-lg bg-muted/50 col-span-full">
+                <h3 className="text-lg font-medium mb-4">Funding & Client Rate Configuration</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Bank Funding Section */}
+                  <div className="space-y-4 p-4 border rounded-lg bg-background">
+                    <h4 className="font-semibold text-base">Bank Funding Rate</h4>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      How the bank finances this loan
+                    </p>
+              
               <div className="space-y-2">
-                <Label htmlFor="rateType">Rate Type</Label>
+                      <Label htmlFor="fundingRateType">Funding Rate Type</Label>
                 <Select
-                  value={formData.rateType}
-                  onValueChange={value => handleSelectChange('rateType', value)}
+                        value={formData.fundingRateType}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, fundingRateType: value as 'fixed' | 'variable' }))}
                 >
-                  <SelectTrigger id="rateType">
-                    <SelectValue placeholder="Select rate type" />
+                        <SelectTrigger id="fundingRateType">
+                          <SelectValue placeholder="Select funding rate type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="fixed">Fixed Rate</SelectItem>
                     <SelectItem value="variable">Variable Rate</SelectItem>
                   </SelectContent>
                 </Select>
+                    </div>
+                    
+                    {formData.fundingRateType === 'fixed' ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="fundingRate">Funding Rate (%)</Label>
+                        <Input 
+                          id="fundingRate" 
+                          name="fundingRate" 
+                          type="number" 
+                          step="0.01" 
+                          value={formData.fundingRate || ''} 
+                          onChange={handleInputChange} 
+                          placeholder={ParameterService.loadParameters().fundingCost ? (ParameterService.loadParameters().fundingCost * 100).toFixed(2) : '2.0'} 
+                        />
                 <p className="text-xs text-muted-foreground">
-                  Fixed rate loans have a constant interest rate. Variable rate loans adjust based on market conditions.
-                </p>
+                          Default from parameters: {(ParameterService.loadParameters().fundingCost * 100).toFixed(2)}%
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="fundingIndex">Funding Index</Label>
+                          <Select
+                            value={formData.fundingIndex || ''}
+                            onValueChange={(value) => {
+                              setFormData(prev => ({ ...prev, fundingIndex: value, useCustomFundingRate: false }));
+                            }}
+                          >
+                            <SelectTrigger id="fundingIndex">
+                              <SelectValue placeholder="Select funding index" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FundingIndexService.getInstance().getAllFundingIndicesData()
+                                .filter(idx => idx.currency === formData.currency || !formData.currency)
+                                .map(index => (
+                                  <SelectItem key={index.code} value={index.code}>
+                                    {index.name} ({index.currentValue}%)
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
               </div>
               
-
+                        <div className="space-y-2">
+                          <Label htmlFor="fundingMargin">Funding Margin (bp)</Label>
+                          <Input 
+                            id="fundingMargin" 
+                            name="fundingMargin" 
+                            type="number" 
+                            step="1" 
+                            value={formData.fundingMargin || '50'} 
+                            onChange={handleInputChange} 
+                            placeholder="50" 
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Margin in basis points added to funding index (100 bp = 1%)
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="useCustomFundingRate"
+                              checked={formData.useCustomFundingRate || false}
+                              onChange={(e) => setFormData(prev => ({ ...prev, useCustomFundingRate: e.target.checked }))}
+                            />
+                            <Label htmlFor="useCustomFundingRate" className="cursor-pointer">Use Custom Hardcoded Rate</Label>
+                          </div>
+                          {formData.useCustomFundingRate && (
+                            <Input 
+                              id="customFundingRate" 
+                              name="customFundingRate" 
+                              type="number" 
+                              step="0.01" 
+                              value={formData.customFundingRate || ''} 
+                              onChange={handleInputChange} 
+                              placeholder="5.0" 
+                            />
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Override index with a fixed rate (%)
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Client Rate Section */}
+                  <div className="space-y-4 p-4 border rounded-lg bg-background">
+                    <h4 className="font-semibold text-base">Client Loan Rate</h4>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Rate structure for the client loan
+                    </p>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="clientRateType">Client Rate Type</Label>
+                      <Select
+                        value={formData.clientRateType}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, clientRateType: value as 'fixed' | 'variable' }))}
+                      >
+                        <SelectTrigger id="clientRateType">
+                          <SelectValue placeholder="Select client rate type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fixed">Fixed Rate</SelectItem>
+                          <SelectItem value="variable">Variable Rate</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {formData.clientRateType === 'variable' ? (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="clientFundingIndex">Client Rate Index</Label>
+                          <Select
+                            value={formData.clientFundingIndex || ''}
+                            onValueChange={(value) => {
+                              setFormData(prev => ({ ...prev, clientFundingIndex: value }));
+                            }}
+                          >
+                            <SelectTrigger id="clientFundingIndex">
+                              <SelectValue placeholder="Select client rate index" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FundingIndexService.getInstance().getAllFundingIndicesData()
+                                .filter(idx => idx.currency === formData.currency || !formData.currency)
+                                .map(index => (
+                                  <SelectItem key={index.code} value={index.code}>
+                                    {index.name} ({index.currentValue}%)
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            All costs (operational, capital, risk, funding margin) will be added to this index
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="margin">Margin (%)</Label>
+                        <Input 
+                          id="margin" 
+                          name="margin" 
+                          type="number" 
+                          step="0.01" 
+                          value={formData.margin} 
+                          onChange={handleInputChange} 
+                          placeholder="2.0" 
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Spread over funding rate
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
               
               <div className="space-y-2">
                 <Label htmlFor="originalAmount">Original Amount *</Label>
@@ -1172,32 +1451,6 @@ const LoanNew = () => {
                 <p className="text-xs text-muted-foreground">
                   Auto-calculated from selected rating type
                 </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="margin">Margin (%)</Label>
-                <Input 
-                  id="margin" 
-                  name="margin" 
-                  type="number" 
-                  step="0.01" 
-                  value={formData.margin} 
-                  onChange={handleInputChange} 
-                  placeholder="2.0" 
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="referenceRate">Reference Rate (%)</Label>
-                <Input 
-                  id="referenceRate" 
-                  name="referenceRate" 
-                  type="number" 
-                  step="0.01" 
-                  value={formData.referenceRate} 
-                  onChange={handleInputChange} 
-                  placeholder="3.0" 
-                />
               </div>
             </div>
             

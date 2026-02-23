@@ -166,10 +166,14 @@ export interface Loan {
     agency: number;
     other: number;
   };
-  margin: number; // Spread over reference rate (%)
-  referenceRate: number; // Base rate (%)
-  rateType: 'fixed' | 'variable'; // Fixed or variable rate loan
-  fundingIndex?: FundingIndex; // Funding index for the loan
+  margin: number; // Client margin - Spread over reference rate (%)
+  fundingMargin: number; // Funding margin in basis points (bp) - added to funding index when variable
+  referenceRate: number; // Base rate (%) - for client rate if fixed, or funding rate if fixed
+  rateType: 'fixed' | 'variable'; // DEPRECATED: Use clientRateType instead. Kept for backward compatibility
+  clientRateType: 'fixed' | 'variable'; // Fixed or variable rate for the client loan
+  fundingRateType: 'fixed' | 'variable'; // Fixed or variable rate for bank funding
+  fundingIndex?: FundingIndex; // Funding index for variable funding
+  clientFundingIndex?: FundingIndex; // Index for variable client rate (if different from funding)
 
   // --- NOUVEAUX PARAMÈTRES STRUCTURE CASHFLOW ---
   interestPaymentFrequency?: 'monthly' | 'quarterly' | 'semiannual' | 'annual';

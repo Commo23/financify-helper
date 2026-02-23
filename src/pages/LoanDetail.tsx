@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import { sampleLoans, defaultCalculationParameters } from '../data/sampleData';
 import { Loan, CashFlow, Currency } from '../types/finance';
-import { calculateLoanMetrics, getTotalInterestRate, getCurrentFundingIndexRate } from '../utils/financialCalculations';
+import { calculateLoanMetrics, getTotalInterestRate, getCurrentFundingIndexRate, getCurrentClientFundingIndexRate, getBankFundingRate, calculateRWA } from '../utils/financialCalculations';
 import LoanDataService from '../services/LoanDataService';
 import ClientTemplateService from '../services/ClientTemplateService';
 import { toast } from '@/hooks/use-toast';
@@ -1036,34 +1036,153 @@ const LoanDetail = () => {
                 
                 <div>
                   <h3 className="text-lg font-semibold mb-3">Yield</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Reference Rate</span>
-                      <span className="font-medium">{formatPercent(displayLoan.referenceRate)}</span>
+                  <div className="space-y-4">
+                    {/* Bank Funding Section */}
+                    <div className="p-3 border rounded-lg bg-muted/30">
+                      <h4 className="text-sm font-semibold mb-2">Bank Funding</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Funding Type</span>
+                          <span className="font-medium">
+                            {(displayLoan.fundingRateType || (displayLoan.fundingIndex ? 'variable' : 'fixed')) === 'fixed' ? 'Fixed' : 'Variable'}
+                          </span>
+                        </div>
+                        {(displayLoan.fundingRateType || (displayLoan.fundingIndex ? 'variable' : 'fixed')) === 'fixed' ? (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Funding Rate</span>
+                            <span className="font-medium">{formatPercent(getBankFundingRate(displayLoan))}</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Funding Index</span>
+                              <span className="font-medium">
+                                {displayLoan.fundingIndex ? (
+                                  <>
+                                    {FundingIndexService.getInstance().getFundingIndexData(displayLoan.fundingIndex)?.name || displayLoan.fundingIndex}
+                                    {' '}({formatPercent(getCurrentFundingIndexRate(displayLoan))})
+                                  </>
+                                ) : (
+                                  <>Custom: {formatPercent(displayLoan.referenceRate)}</>
+                                )}
+                              </span>
+                            </div>
+                            {displayLoan.fundingMargin && (
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Funding Margin</span>
+                                <span className="font-medium">{formatPercent(displayLoan.fundingMargin)} ({(displayLoan.fundingMargin * 10000).toFixed(0)} bp)</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between font-medium">
+                              <span>Total Funding Rate</span>
+                              <span>{formatPercent(getBankFundingRate(displayLoan))}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Funding Index Rate</span>
-                      <span className="font-medium">{formatPercent(getCurrentFundingIndexRate(displayLoan))}</span>
+                    
+                    {/* Client Rate Section */}
+                    <div className="p-3 border rounded-lg bg-muted/30">
+                      <h4 className="text-sm font-semibold mb-2">Client Loan Rate</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Client Rate Type</span>
+                          <span className="font-medium">
+                            {(displayLoan.clientRateType || displayLoan.rateType) === 'fixed' ? 'Fixed' : 'Variable'}
+                          </span>
+                        </div>
+                        {(displayLoan.clientRateType || displayLoan.rateType) === 'variable' ? (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Client Index</span>
+                              <span className="font-medium">
+                                {displayLoan.clientFundingIndex ? (
+                                  <>
+                                    {FundingIndexService.getInstance().getFundingIndexData(displayLoan.clientFundingIndex)?.name || displayLoan.clientFundingIndex}
+                                    {' '}({formatPercent(getCurrentClientFundingIndexRate(displayLoan))})
+                                  </>
+                                ) : (
+                                  <>Using bank funding index</>
+                                )}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground italic">
+                              All costs below are added to the index
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Margin</span>
+                            <span className="font-medium">{formatPercent(displayLoan.margin)}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Margin</span>
-                      <span className="font-medium">{formatPercent(displayLoan.margin)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Operational Costs</span>
-                      <span className="font-medium">{formatPercent(ParameterService.loadParameters().operationalCostRatio)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Capital Costs (EVA)</span>
-                      <span className="font-medium">{formatPercent((ParameterService.loadParameters().targetROE * ParameterService.loadParameters().capitalRatio))}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between font-semibold">
-                      <span>Total Interest Rate</span>
-                      <span>{formatPercent(getTotalInterestRate(displayLoan, ParameterService.loadParameters()))}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Total = {formatPercent(displayLoan.referenceRate)} + {formatPercent(getCurrentFundingIndexRate(displayLoan))} + {formatPercent(displayLoan.margin)} + {formatPercent(ParameterService.loadParameters().operationalCostRatio)} + {formatPercent(ParameterService.loadParameters().targetROE * ParameterService.loadParameters().capitalRatio)} = {formatPercent(getTotalInterestRate(displayLoan, ParameterService.loadParameters()))}
+                    
+                    {/* Costs Section */}
+                    <div className="space-y-2">
+                      {(displayLoan.clientRateType || displayLoan.rateType) === 'variable' ? (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Operational Costs</span>
+                            <span className="font-medium">{formatPercent(ParameterService.loadParameters().operationalCostRatio)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Capital Costs (EVA)</span>
+                            <span className="font-medium">
+                              {formatPercent(((ParameterService.loadParameters().targetROE * 
+                                calculateRWA(displayLoan, ParameterService.loadParameters()) * 
+                                ParameterService.loadParameters().capitalRatio) / 
+                                (displayLoan.drawnAmount || displayLoan.originalAmount)))}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Cost of Risk (PD × LGD)</span>
+                            <span className="font-medium">{formatPercent(displayLoan.pd * displayLoan.lgd)}</span>
+                          </div>
+                          {displayLoan.fundingRateType === 'variable' && displayLoan.fundingMargin && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Funding Margin</span>
+                              <span className="font-medium">{formatPercent(displayLoan.fundingMargin)} ({(displayLoan.fundingMargin * 10000).toFixed(0)} bp)</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Client Margin</span>
+                            <span className="font-medium">{formatPercent(displayLoan.margin)}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Client Margin</span>
+                            <span className="font-medium">{formatPercent(displayLoan.margin)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Operational Costs</span>
+                            <span className="font-medium">{formatPercent(ParameterService.loadParameters().operationalCostRatio)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Capital Costs (EVA)</span>
+                            <span className="font-medium">
+                              {formatPercent(((ParameterService.loadParameters().targetROE * 
+                                calculateRWA(displayLoan, ParameterService.loadParameters()) * 
+                                ParameterService.loadParameters().capitalRatio) / 
+                                (displayLoan.drawnAmount || displayLoan.originalAmount)))}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between font-semibold">
+                        <span>Total Interest Rate</span>
+                        <span>{formatPercent(getTotalInterestRate(displayLoan, ParameterService.loadParameters()))}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {(displayLoan.clientRateType || displayLoan.rateType) === 'variable' 
+                          ? 'Variable: Client Index + All Costs (operational, capital, risk, funding margin, client margin)'
+                          : 'Fixed: Bank Funding Rate + Client Margin + Operational Costs + Capital Costs'}
+                      </div>
                     </div>
                   </div>
                 </div>

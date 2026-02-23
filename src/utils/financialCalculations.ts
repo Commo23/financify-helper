@@ -513,7 +513,7 @@ export const simulateScenario = (
   return calculatePortfolioMetrics(modifiedLoans, params);
 };
 
-// Helper function to get current funding index rate for a loan
+// Helper function to get current funding index rate for a loan (bank funding)
 export const getCurrentFundingIndexRate = (loan: Loan): number => {
   const fundingIndexService = FundingIndexService.getInstance();
   
@@ -530,22 +530,128 @@ export const getCurrentFundingIndexRate = (loan: Loan): number => {
   return defaultIndexData.currentValue / 100; // Convert from percentage to decimal
 };
 
-// Helper function to get the total interest rate for cashflow calculations
-export const getTotalInterestRate = (loan: Loan, params?: CalculationParameters): number => {
-  const fundingIndexRate = getCurrentFundingIndexRate(loan);
-  const baseRate = loan.referenceRate + fundingIndexRate + loan.margin;
+// Helper function to get current client rate index (for variable client rates)
+export const getCurrentClientFundingIndexRate = (loan: Loan): number => {
+  const fundingIndexService = FundingIndexService.getInstance();
   
-  // If params are provided, include operational and capital costs
-  if (params) {
-    const operationalCost = params.operationalCostRatio;
-    
-    // Calculate capital cost dynamically based on loan's capital requirements
-    const rwa = calculateRWA(loan, params);
-    const capitalRequired = rwa * params.capitalRatio;
-    const capitalCost = (params.targetROE * capitalRequired) / (loan.drawnAmount || loan.originalAmount);
-    
-    return baseRate + operationalCost + capitalCost;
+  // If loan has a specific client funding index, use it
+  if (loan.clientFundingIndex) {
+    const indexData = fundingIndexService.getFundingIndexData(loan.clientFundingIndex);
+    if (indexData) {
+      return indexData.currentValue / 100; // Convert from percentage to decimal
+    }
   }
   
-  return baseRate;
+  // Fallback to bank funding index if available
+  if (loan.fundingIndex) {
+    return getCurrentFundingIndexRate(loan);
+  }
+  
+  // Otherwise, get the default funding index for the loan's currency
+  const defaultIndexData = fundingIndexService.getFundingIndexDataWithFallback(loan.currency);
+  return defaultIndexData.currentValue / 100; // Convert from percentage to decimal
+};
+
+// Helper function to get bank funding rate (how the bank finances)
+export const getBankFundingRate = (loan: Loan): number => {
+  if (loan.fundingRateType === 'fixed') {
+    // For fixed funding: use referenceRate (which contains the fixed funding rate)
+    return loan.referenceRate;
+  } else {
+    // For variable funding: use funding index + funding margin (in bp) or custom rate
+    let baseRate: number;
+    
+    if (loan.fundingIndex) {
+      baseRate = getCurrentFundingIndexRate(loan);
+    } else {
+      // Custom hardcoded rate stored in referenceRate
+      baseRate = loan.referenceRate;
+    }
+    
+    // Add funding margin (in bp, converted to decimal)
+    const fundingMargin = loan.fundingMargin || 0;
+    return baseRate + fundingMargin;
+  }
+};
+
+// Helper function to get the total interest rate for cashflow calculations
+// For variable client rate: index client + ALL costs (operational, capital, risk, funding margin)
+// For fixed client rate: bank funding rate + client margin + operational costs + capital costs
+export const getTotalInterestRate = (loan: Loan, params?: CalculationParameters): number => {
+  // Get bank funding rate (how the bank finances)
+  const bankFundingRate = getBankFundingRate(loan);
+  
+  // Use new clientRateType if available, fallback to rateType for backward compatibility
+  const clientRateType = loan.clientRateType || loan.rateType;
+  
+  if (clientRateType === 'variable') {
+    // For variable client rate:
+    // The rate = client index + ALL costs (operational, capital, risk, funding margin)
+    // When the index moves, all these costs are also added
+    
+    // Get client index rate
+    let clientIndexRate: number;
+    if (loan.clientFundingIndex) {
+      clientIndexRate = getCurrentClientFundingIndexRate(loan);
+    } else {
+      // Fallback: use bank funding index (without margin, as margin is added separately)
+      if (loan.fundingIndex) {
+        clientIndexRate = getCurrentFundingIndexRate(loan);
+      } else {
+        // Use bank funding rate as fallback
+        clientIndexRate = bankFundingRate;
+      }
+    }
+    
+    // Start with client index
+    let totalRate = clientIndexRate;
+    
+    // If params are provided, add ALL costs
+    if (params) {
+      // Add operational cost
+      totalRate += params.operationalCostRatio;
+      
+      // Add capital cost
+      const rwa = calculateRWA(loan, params);
+      const capitalRequired = rwa * params.capitalRatio;
+      const capitalCost = (params.targetROE * capitalRequired) / (loan.drawnAmount || loan.originalAmount);
+      totalRate += capitalCost;
+      
+      // Add cost of risk (PD × LGD)
+      const costOfRisk = loan.pd * loan.lgd;
+      totalRate += costOfRisk;
+      
+      // Add funding margin (if funding is variable)
+      if (loan.fundingRateType === 'variable' && loan.fundingMargin) {
+        totalRate += loan.fundingMargin;
+      }
+      
+      // Add client margin
+      totalRate += loan.margin;
+    } else {
+      // Without params, just add client margin
+      totalRate += loan.margin;
+    }
+    
+    return totalRate;
+  } else {
+    // For fixed client rate:
+    // - Use bank funding rate + client margin + operational costs + capital costs
+    let clientBaseRate = bankFundingRate + loan.margin;
+    
+    // If params are provided, include operational and capital costs
+    if (params) {
+      const operationalCost = params.operationalCostRatio;
+      
+      // Calculate capital cost dynamically based on loan's capital requirements
+      const rwa = calculateRWA(loan, params);
+      const capitalRequired = rwa * params.capitalRatio;
+      const capitalCost = (params.targetROE * capitalRequired) / (loan.drawnAmount || loan.originalAmount);
+      
+      // Total rate = Client base rate + operational costs + capital costs
+      return clientBaseRate + operationalCost + capitalCost;
+    }
+    
+    return clientBaseRate;
+  }
 };
