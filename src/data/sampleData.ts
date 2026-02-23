@@ -211,7 +211,11 @@ export const sampleLoans: Loan[] = [
       other: 15000
     },
     margin: 0.025,
+    fundingMargin: 50,
     referenceRate: 0.015,
+    rateType: 'variable',
+    clientRateType: 'variable',
+    fundingRateType: 'variable',
     fundingIndex: 'EUR3M',
     ratings: {
       internal: 'BBB',
@@ -289,7 +293,11 @@ export const sampleLoans: Loan[] = [
       other: 10000
     },
     margin: 0.03,
+    fundingMargin: 45,
     referenceRate: 0.015,
+    rateType: 'variable',
+    clientRateType: 'variable',
+    fundingRateType: 'variable',
     fundingIndex: 'EUR3M',
     ratings: {
       internal: 'BB',
@@ -367,7 +375,11 @@ export const sampleLoans: Loan[] = [
       other: 30000
     },
     margin: 0.035,
+    fundingMargin: 60,
     referenceRate: 0.015,
+    rateType: 'variable',
+    clientRateType: 'variable',
+    fundingRateType: 'variable',
     internalRating: 'B',
     ratings: {
       internal: 'B',
@@ -444,7 +456,11 @@ export const sampleLoans: Loan[] = [
       other: 20000
     },
     margin: 0.028,
+    fundingMargin: 40,
     referenceRate: 0.015,
+    rateType: 'fixed',
+    clientRateType: 'fixed',
+    fundingRateType: 'fixed',
     internalRating: 'BBB',
     ratings: {
       internal: 'BBB',
@@ -514,7 +530,11 @@ export const sampleLoans: Loan[] = [
       other: 10000
     },
     margin: 0.02,
+    fundingMargin: 35,
     referenceRate: 0.015,
+    rateType: 'variable',
+    clientRateType: 'variable',
+    fundingRateType: 'variable',
     internalRating: 'A',
     ratings: {
       internal: 'A',

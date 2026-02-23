@@ -66,10 +66,10 @@ const Reports = () => {
       
       if (formatExists) {
         if (format === 'excel' || format === 'csv') {
-          ExcelTemplateService.exportData(
-            portfolio, 
+          ExcelTemplateService.generateReport(
             reportType, 
-            format as 'excel' | 'csv'
+            portfolio, 
+            format
           );
         } else {
           // PDF format - simulate download for now
