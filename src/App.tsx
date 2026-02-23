@@ -22,6 +22,7 @@ import Reports from "./pages/Reports";
 import Documentation from "./pages/Documentation";
 import LoanNew from "./pages/LoanNew";
 import Portfolio from "./pages/Portfolio";
+import RateExplorer from "./pages/RateExplorer";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,7 @@ const App = () => {
           <Route path="/appearance" element={<Layout><Appearance /></Layout>} />
           <Route path="/reports" element={<Layout><Reports /></Layout>} />
           <Route path="/documentation" element={<Layout><Documentation /></Layout>} />
+          <Route path="/rate-explorer" element={<Layout><RateExplorer /></Layout>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

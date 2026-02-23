@@ -29,6 +29,7 @@ import {
   Briefcase,
   LineChart,
   Palette,
+  TrendingUp,
 } from 'lucide-react';
 
 export function AppSidebar() {
@@ -150,6 +151,12 @@ export function AppSidebar() {
           <SidebarGroupLabel>Tools</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => navigate('/rate-explorer')} isActive={isActive('/rate-explorer')}>
+                  <TrendingUp />
+                  <span>Rate Explorer</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={() => navigate('/import')} isActive={isActive('/import')}>
                   <Upload />
